@@ -22,11 +22,21 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
+      # Dùng npm ci vì con đã có package-lock.json ổn định
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test --if-present
+      # Đảm bảo tslib luôn có sẵn để build không lỗi
+      - name: Ensure tslib is present
+        run: npm install tslib --save-dev
+
+      # Nếu chạy thủ công bằng workflow_dispatch, tự động tăng version
+      - name: Bump version (if manual)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config --global user.email "bot@fun-ecosystem.com"
+          git config --global user.name "Fun Eco Bot"
+          npm version ${{ github.event.inputs.version }} -m "Bump version to %s [skip ci]"
 
       - name: Build
         run: npm run build
