@@ -17,6 +17,9 @@ import type {
   RequestOptions,
   FinancialData,
   FinancialDelta,
+  FinancialTransactionOptions,
+  FinancialTransactionResult,
+  FinancialAction,
 } from './types';
 
 import {
@@ -352,6 +355,75 @@ export class FunProfileClient {
       financialData: data as FinancialData,
       clientTimestamp: new Date().toISOString(),
     });
+  }
+
+  /**
+   * Sync a single financial transaction (Idempotent)
+   * 
+   * This method implements the Financial Data Contract for transaction-level sync.
+   * It is idempotent: if the same transactionId is sent multiple times, 
+   * only the first will be processed.
+   * 
+   * @example
+   * ```typescript
+   * // Claim reward
+   * await client.syncFinancialTransaction({
+   *   action: 'CLAIM_REWARD',
+   *   amount: 150,
+   *   transactionId: 'tx-123-456',
+   *   currency: 'CAMLY'
+   * });
+   * 
+   * // User wins a game
+   * await client.syncFinancialTransaction({
+   *   action: 'WIN',
+   *   amount: 5000,
+   *   transactionId: `win-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+   * });
+   * ```
+   */
+  async syncFinancialTransaction(options: FinancialTransactionOptions): Promise<FinancialTransactionResult> {
+    const body: Record<string, unknown> = {
+      action: options.action,
+      amount: options.amount,
+      transaction_id: options.transactionId,
+    };
+
+    if (options.currency) body.currency = options.currency;
+    if (options.platformKey) body.platform_key = options.platformKey;
+    if (options.metadata) body.metadata = options.metadata;
+
+    const response = await this.authenticatedRequest(ENDPOINTS.syncFinancial, {
+      method: 'POST',
+      body,
+    });
+
+    const result: FinancialTransactionResult = {
+      success: response.success as boolean,
+      alreadyProcessed: response.already_processed as boolean,
+      transactionId: response.transaction_id as string,
+      action: response.action as FinancialAction,
+      amount: response.amount as number,
+      currency: response.currency as string | undefined,
+      internalId: response.internal_id as string | undefined,
+      syncedAt: (response.synced_at || response.processed_at) as string,
+      message: response.message as string | undefined,
+    };
+
+    // Include new balance if returned
+    if (response.new_balance) {
+      const nb = response.new_balance as Record<string, number>;
+      result.newBalance = {
+        totalDeposit: nb.total_deposit,
+        totalWithdraw: nb.total_withdraw,
+        totalBet: nb.total_bet,
+        totalWin: nb.total_win,
+        totalLoss: nb.total_loss,
+        totalProfit: nb.total_profit,
+      };
+    }
+
+    return result;
   }
 
   // ============================================

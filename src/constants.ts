@@ -24,6 +24,7 @@ export const ENDPOINTS = {
   revoke: '/sso-revoke',
   register: '/sso-register',
   syncData: '/sso-sync-data',
+  syncFinancial: '/sso-sync-financial',
   web3Auth: '/sso-web3-auth',
   otpRequest: '/sso-otp-request',
   otpVerify: '/sso-otp-verify',

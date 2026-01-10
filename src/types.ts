@@ -81,6 +81,43 @@ export interface FinancialDelta {
   profitDelta?: number;
 }
 
+// Financial action types per Data Contract
+export type FinancialAction = 
+  | 'CLAIM_REWARD'
+  | 'SEND_MONEY'
+  | 'RECEIVE_MONEY'
+  | 'DEPOSIT'
+  | 'WITHDRAW'
+  | 'BET'
+  | 'WIN'
+  | 'LOSS'
+  | 'ADJUSTMENT_ADD'
+  | 'ADJUSTMENT_SUB';
+
+// Financial transaction sync options
+export interface FinancialTransactionOptions {
+  action: FinancialAction;
+  amount: number;
+  transactionId: string;
+  currency?: string;
+  platformKey?: string;
+  metadata?: Record<string, unknown>;
+}
+
+// Financial transaction result (idempotent)
+export interface FinancialTransactionResult {
+  success: boolean;
+  alreadyProcessed: boolean;
+  transactionId: string;
+  action: FinancialAction;
+  amount: number;
+  currency?: string;
+  internalId?: string;
+  syncedAt: string;
+  newBalance?: FinancialData;
+  message?: string;
+}
+
 // Registration options
 export interface RegisterOptions {
   email?: string;
