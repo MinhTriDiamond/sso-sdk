@@ -2,6 +2,7 @@
  * Fun Profile SSO SDK - Main Client
  * 
  * Core client for OAuth 2.0 + PKCE authentication with Fun Profile.
+ * Supports JWT access tokens with local verification.
  */
 
 import type {
@@ -14,6 +15,8 @@ import type {
   AuthResult,
   SyncResult,
   RequestOptions,
+  FinancialData,
+  FinancialDelta,
 } from './types';
 
 import {
@@ -47,6 +50,7 @@ export class FunProfileClient {
   private storage: TokenStorage;
   private currentUser: FunUser | null = null;
   private syncManager: DebouncedSyncManager | null = null;
+  private financialSyncManager: DebouncedSyncManager | null = null;
 
   constructor(config: FunProfileConfig) {
     this.config = {
@@ -147,6 +151,14 @@ export class FunProfileClient {
       }
     }
 
+    if (this.financialSyncManager?.hasPendingData()) {
+      try {
+        await this.financialSyncManager.flush();
+      } catch {
+        // Ignore sync errors on logout
+      }
+    }
+
     const tokens = await this.storage.getTokens();
     if (tokens) {
       try {
@@ -165,14 +177,15 @@ export class FunProfileClient {
     await this.storage.clearTokens();
     this.currentUser = null;
     this.syncManager?.clear();
+    this.financialSyncManager?.clear();
   }
 
   // ============================================
-  // Sync Manager
+  // Sync Managers
   // ============================================
 
   /**
-   * Get debounced sync manager for efficient data synchronization
+   * Get debounced sync manager for game/platform data
    * @param debounceMs - Debounce time in milliseconds (default: 3000)
    */
   getSyncManager(debounceMs = 3000): DebouncedSyncManager {
@@ -191,6 +204,36 @@ export class FunProfileClient {
     return this.syncManager;
   }
 
+  /**
+   * Get debounced sync manager for financial data (uses delta mode)
+   * @param debounceMs - Debounce time in milliseconds (default: 5000)
+   */
+  getFinancialSyncManager(debounceMs = 5000): DebouncedSyncManager {
+    if (!this.financialSyncManager) {
+      this.financialSyncManager = new DebouncedSyncManager(
+        async (data) => {
+          // Accumulate deltas from batched data
+          const delta: FinancialDelta = {
+            depositDelta: (data.deposit_delta as number) || 0,
+            withdrawDelta: (data.withdraw_delta as number) || 0,
+            betDelta: (data.bet_delta as number) || 0,
+            winDelta: (data.win_delta as number) || 0,
+            lossDelta: (data.loss_delta as number) || 0,
+            profitDelta: (data.profit_delta as number) || 0,
+          };
+          
+          await this.syncData({
+            mode: 'delta',
+            financialDelta: delta,
+            clientTimestamp: new Date().toISOString(),
+          });
+        },
+        debounceMs
+      );
+    }
+    return this.financialSyncManager;
+  }
+
   // ============================================
   // User Data Methods
   // ============================================
@@ -203,7 +246,7 @@ export class FunProfileClient {
       method: 'GET',
     });
 
-    this.currentUser = this.transformUser(response.user);
+    this.currentUser = this.transformUser(response);
     return this.currentUser;
   }
 
@@ -218,24 +261,97 @@ export class FunProfileClient {
    * Sync platform data to Fun Profile
    */
   async syncData(options: SyncOptions): Promise<SyncResult> {
+    const body: Record<string, unknown> = {
+      sync_mode: options.mode,
+      client_timestamp: options.clientTimestamp || new Date().toISOString(),
+    };
+
+    // Add game/platform data if provided
+    if (options.data) {
+      body.data = options.data;
+    }
+
+    // Add categories if provided
+    if (options.categories) {
+      body.categories = options.categories;
+    }
+
+    // Add financial data if provided (replace mode)
+    if (options.financialData) {
+      body.financial_data = {
+        total_deposit: options.financialData.totalDeposit,
+        total_withdraw: options.financialData.totalWithdraw,
+        total_bet: options.financialData.totalBet,
+        total_win: options.financialData.totalWin,
+        total_loss: options.financialData.totalLoss,
+        total_profit: options.financialData.totalProfit,
+      };
+    }
+
+    // Add financial delta if provided (delta mode)
+    if (options.financialDelta) {
+      body.financial_delta = {
+        deposit_delta: options.financialDelta.depositDelta,
+        withdraw_delta: options.financialDelta.withdrawDelta,
+        bet_delta: options.financialDelta.betDelta,
+        win_delta: options.financialDelta.winDelta,
+        loss_delta: options.financialDelta.lossDelta,
+        profit_delta: options.financialDelta.profitDelta,
+      };
+    }
+
     const response = await this.authenticatedRequest(ENDPOINTS.syncData, {
       method: 'POST',
-      body: {
-        sync_mode: options.mode,
-        platform_data: options.data,
-        categories: options.categories,
-        client_timestamp: options.clientTimestamp || new Date().toISOString(),
-      },
+      body,
     });
 
-    return {
-      success: response.success,
-      syncedAt: response.synced_at,
-      syncMode: response.sync_mode,
-      syncCount: response.sync_count,
-      categoriesUpdated: response.categories_updated,
-      dataSize: response.data_size,
+    const result: SyncResult = {
+      success: response.success as boolean,
+      syncedAt: response.synced_at as string,
+      syncMode: response.sync_mode as string,
+      syncCount: response.sync_count as number,
+      categoriesUpdated: response.categories_updated as string[],
+      dataSize: response.data_size as number,
     };
+
+    // Include financial data in result if returned
+    if (response.financial_data) {
+      const fd = response.financial_data as Record<string, number>;
+      result.financialData = {
+        totalDeposit: fd.total_deposit,
+        totalWithdraw: fd.total_withdraw,
+        totalBet: fd.total_bet,
+        totalWin: fd.total_win,
+        totalLoss: fd.total_loss,
+        totalProfit: fd.total_profit,
+      };
+    }
+
+    return result;
+  }
+
+  /**
+   * Quick method to sync financial delta
+   * @example
+   * await client.syncFinancialDelta({ betDelta: 1000, lossDelta: 1000 });
+   */
+  async syncFinancialDelta(delta: FinancialDelta): Promise<SyncResult> {
+    return this.syncData({
+      mode: 'delta',
+      financialDelta: delta,
+      clientTimestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Quick method to sync full financial data (replace)
+   */
+  async syncFinancialData(data: Partial<FinancialData>): Promise<SyncResult> {
+    return this.syncData({
+      mode: 'replace',
+      financialData: data as FinancialData,
+      clientTimestamp: new Date().toISOString(),
+    });
   }
 
   // ============================================
@@ -311,14 +427,38 @@ export class FunProfileClient {
     });
 
     const newTokens: TokenData = {
-      accessToken: response.access_token,
-      refreshToken: response.refresh_token || tokens.refreshToken,
-      expiresAt: Date.now() + response.expires_in * 1000,
-      scope: response.scope?.split(' ') || tokens.scope,
+      accessToken: response.access_token as string,
+      refreshToken: (response.refresh_token as string) || tokens.refreshToken,
+      expiresAt: Date.now() + (response.expires_in as number) * 1000,
+      scope: ((response.scope as string) || '').split(' ') || tokens.scope,
     };
 
     await this.storage.setTokens(newTokens);
     return newTokens;
+  }
+
+  /**
+   * Decode JWT claims from access token (without verification)
+   * Useful for getting user info without API call
+   */
+  decodeAccessToken(): Record<string, unknown> | null {
+    const tokens = this.storage.getTokens();
+    if (!tokens) return null;
+
+    return tokens.then((t) => {
+      if (!t) return null;
+      try {
+        const parts = t.accessToken.split('.');
+        if (parts.length !== 3) return null;
+        
+        // Decode payload (middle part)
+        const payload = parts[1];
+        const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+        return JSON.parse(decoded);
+      } catch {
+        return null;
+      }
+    }) as unknown as Record<string, unknown> | null;
   }
 
   // ============================================
@@ -354,8 +494,8 @@ export class FunProfileClient {
   }
 
   private transformUser(data: Record<string, unknown>): FunUser {
-    return {
-      id: data.id as string,
+    const user: FunUser = {
+      id: (data.sub as string) || (data.id as string),
       funId: data.fun_id as string,
       username: data.username as string,
       fullName: data.full_name as string | undefined,
@@ -363,19 +503,35 @@ export class FunProfileClient {
       email: data.email as string | undefined,
       walletAddress: data.wallet_address as string | undefined,
       externalWalletAddress: data.external_wallet_address as string | undefined,
-      soul: data.soul_nft ? {
-        element: (data.soul_nft as Record<string, unknown>).soul_element as string,
-        level: (data.soul_nft as Record<string, unknown>).soul_level as number,
-        tokenId: (data.soul_nft as Record<string, unknown>).token_id as string | undefined,
-        mintedAt: (data.soul_nft as Record<string, unknown>).minted_at as string | undefined,
-      } : undefined,
-      rewards: data.rewards ? {
-        pending: (data.rewards as Record<string, unknown>).pending as number,
-        approved: (data.rewards as Record<string, unknown>).approved as number,
-        claimed: (data.rewards as Record<string, unknown>).claimed as number,
-        status: (data.rewards as Record<string, unknown>).status as string,
-      } : undefined,
+      custodialWalletAddress: (data.custodial_wallet as string) || (data.custodial_wallet_address as string) || undefined,
+      tokenType: data.token_type as 'jwt' | 'opaque' | undefined,
     };
+
+    // Soul NFT data
+    if (data.soul_nft) {
+      const soul = data.soul_nft as Record<string, unknown>;
+      user.soul = {
+        element: soul.soul_element as string,
+        level: soul.soul_level as number,
+        tokenId: soul.token_id as string | undefined,
+        mintedAt: soul.minted_at as string | undefined,
+        isMinted: soul.is_minted as boolean | undefined,
+      };
+    }
+
+    // Rewards data
+    if (data.rewards) {
+      const rewards = data.rewards as Record<string, unknown>;
+      user.rewards = {
+        pending: (rewards.pending_reward as number) || 0,
+        approved: (rewards.approved_reward as number) || 0,
+        claimed: (rewards.claimed_reward as number) || 0,
+        status: rewards.reward_status as string,
+        total: (rewards.total_rewards as number) || 0,
+      };
+    }
+
+    return user;
   }
 
   private generateState(): string {

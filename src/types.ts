@@ -38,8 +38,11 @@ export interface FunUser {
   email?: string;
   walletAddress?: string;
   externalWalletAddress?: string;
+  custodialWalletAddress?: string;
   soul?: SoulNft;
   rewards?: UserRewards;
+  financialData?: FinancialData;
+  tokenType?: 'jwt' | 'opaque';
 }
 
 export interface SoulNft {
@@ -47,6 +50,7 @@ export interface SoulNft {
   level: number;
   tokenId?: string;
   mintedAt?: string;
+  isMinted?: boolean;
 }
 
 export interface UserRewards {
@@ -54,6 +58,27 @@ export interface UserRewards {
   approved: number;
   claimed: number;
   status: string;
+  total?: number;
+}
+
+// Financial data (cross-platform aggregated)
+export interface FinancialData {
+  totalDeposit: number;
+  totalWithdraw: number;
+  totalBet: number;
+  totalWin: number;
+  totalLoss: number;
+  totalProfit: number;
+}
+
+// Financial delta for incremental updates
+export interface FinancialDelta {
+  depositDelta?: number;
+  withdrawDelta?: number;
+  betDelta?: number;
+  winDelta?: number;
+  lossDelta?: number;
+  profitDelta?: number;
 }
 
 // Registration options
@@ -66,10 +91,12 @@ export interface RegisterOptions {
   platformData?: Record<string, unknown>;
 }
 
-// Sync options
+// Sync options - now supports delta mode and financial data
 export interface SyncOptions {
-  mode: 'merge' | 'replace' | 'append';
-  data: Record<string, unknown>;
+  mode: 'merge' | 'replace' | 'append' | 'delta';
+  data?: Record<string, unknown>;
+  financialData?: Partial<FinancialData>;
+  financialDelta?: FinancialDelta;
   categories?: string[];
   clientTimestamp?: string;
 }
@@ -91,6 +118,7 @@ export interface SyncResult {
   syncCount: number;
   categoriesUpdated: string[];
   dataSize: number;
+  financialData?: FinancialData;
 }
 
 // Request options
@@ -105,4 +133,16 @@ export interface SSOError {
   error: string;
   errorDescription: string;
   details?: Record<string, unknown>;
+}
+
+// JWT Claims (for reference)
+export interface JWTClaims {
+  sub: string;         // user_id
+  fun_id: string;      // FUN ID
+  username: string;    // Display username
+  custodial_wallet: string | null;
+  scope: string[];     // Granted scopes
+  iss: string;         // Issuer (fun_profile)
+  iat: number;         // Issued at
+  exp: number;         // Expiration
 }
