@@ -34,12 +34,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/fun-ecosystem/sso-sdk"
+    "url": "https://github.com/MinhTriDiamond/sso-sdk"
   },
   "bugs": {
-    "url": "https://github.com/fun-ecosystem/sso-sdk/issues"
+    "url": "https://github.com/MinhTriDiamond/sso-sdk/issues"
   },
-  "homepage": "https://github.com/fun-ecosystem/sso-sdk#readme",
+  "homepage": "https://github.com/MinhTriDiamond/sso-sdk#readme",
   "scripts": {
     "build": "rollup -c",
     "build:types": "tsc --emitDeclarationOnly",
