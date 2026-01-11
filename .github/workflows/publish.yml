@@ -13,7 +13,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Cần quyền write để cập nhật version nếu chạy qua workflow_dispatch
     permissions:
       contents: write
       id-token: write 
@@ -21,18 +20,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Quan trọng để lấy được các tags
-
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
-
+      
       - name: Install dependencies
         run: npm ci
-
-      # Bước này quan trọng: Nếu chạy thủ công, nó sẽ tự tăng version trong package.json
+      
       - name: Bump Version (Manual Trigger)
         if: github.event_name == 'workflow_dispatch'
         run: |
@@ -40,16 +39,16 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           npm version ${{ github.event.inputs.version }}
           git push
-
+          git push --tags
+      
       - name: Build
         run: npm run build --if-present
-
+      
       - name: Publish to npm
-        # Thêm --provenance để tăng độ uy tín cho package (yêu cầu id-token: write)
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
+  
   notify:
     needs: build
     runs-on: ubuntu-latest
