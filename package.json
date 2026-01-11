@@ -1,6 +1,6 @@
 {
   "name": "@fun-ecosystem/sso-sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Official SSO SDK for Fun Ecosystem (Fun Farm, Fun Play, Fun Planet)",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.js",
