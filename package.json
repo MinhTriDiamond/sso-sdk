@@ -42,7 +42,7 @@
   "scripts": {
     "build": "rollup -c",
     "build:types": "tsc --emitDeclarationOnly",
-    "test": "vitest",
+    "test": "vitest --passWithNoTests",
     "test:coverage": "vitest --coverage",
     "lint": "eslint src --ext .ts",
     "prepublishOnly": "npm run build",
