@@ -36,7 +36,7 @@ export const DEFAULT_SCOPES = ['profile'];
 export const TOKEN_REFRESH_BUFFER = 5 * 60 * 1000;
 
 // SDK version
-export const SDK_VERSION = '1.0.0';
+export const SDK_VERSION = '1.0.1';
 
 // Default timeout for requests (30 seconds)
 export const DEFAULT_TIMEOUT = 30000;

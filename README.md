@@ -39,7 +39,7 @@ import {
 
 // Fun Farm example
 const funProfile = new FunProfileClient({
-  clientId: 'fun_farm_production',
+  clientId: 'fun_farm_client',
   redirectUri: `${DOMAINS.funFarm}/auth/callback`,
   scopes: ['profile', 'email', 'wallet', 'rewards'],
   // SessionStorage recommended for wallet scopes (XSS protection)
@@ -159,7 +159,7 @@ import {
 
 ```typescript
 const funProfile = new FunProfileClient({
-  clientId: 'fun_farm_production',
+  clientId: 'fun_farm_client',
   redirectUri: 'https://farm.fun.rich/auth/callback',
   scopes: ['profile', 'email', 'wallet', 'rewards'],
   storage: new SessionStorageAdapter('fun_farm_client'),
@@ -170,7 +170,7 @@ const funProfile = new FunProfileClient({
 
 ```typescript
 const funProfile = new FunProfileClient({
-  clientId: 'fun_play_production',
+  clientId: 'fun_play_client',
   redirectUri: 'https://play.fun.rich/auth/callback',
   scopes: ['profile', 'wallet', 'rewards', 'soul_nft'],
   storage: new SessionStorageAdapter('fun_play_client'),
@@ -181,7 +181,7 @@ const funProfile = new FunProfileClient({
 
 ```typescript
 const funProfile = new FunProfileClient({
-  clientId: 'fun_planet_production',
+  clientId: 'fun_planet_client',
   redirectUri: 'https://planet.fun.rich/auth/callback',
   scopes: ['profile', 'wallet', 'rewards'],
   storage: new SessionStorageAdapter('fun_planet_client'),
