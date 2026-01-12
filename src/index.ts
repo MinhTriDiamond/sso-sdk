@@ -50,6 +50,14 @@ export type {
   SyncResult,
   RequestOptions,
   SSOError,
+  // Financial types
+  FinancialData,
+  FinancialDelta,
+  FinancialAction,
+  FinancialTransactionOptions,
+  FinancialTransactionResult,
+  // JWT types
+  JWTClaims,
 } from './types';
 
 // Errors
