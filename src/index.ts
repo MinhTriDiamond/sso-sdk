@@ -58,6 +58,14 @@ export type {
   FinancialTransactionResult,
   // JWT types
   JWTClaims,
+  // OTP types
+  OtpRequestOptions,
+  OtpRequestResult,
+  OtpVerifyOptions,
+  // Web3 types
+  Web3AuthOptions,
+  Web3AuthResult,
+  Web3SignMessageOptions,
 } from './types';
 
 // Errors

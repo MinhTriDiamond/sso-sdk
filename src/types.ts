@@ -183,3 +183,58 @@ export interface JWTClaims {
   iat: number;         // Issued at
   exp: number;         // Expiration
 }
+
+// ============================================
+// OTP Authentication Types
+// ============================================
+
+export interface OtpRequestOptions {
+  /** Email or phone number to send OTP to */
+  identifier: string;
+  /** Type of identifier (default: 'email') */
+  type?: 'email' | 'phone';
+}
+
+export interface OtpRequestResult {
+  success: boolean;
+  message: string;
+  emailSent?: boolean;
+  expiresInSeconds: number;
+}
+
+export interface OtpVerifyOptions {
+  /** Email or phone that received OTP */
+  identifier: string;
+  /** 6-digit OTP code */
+  code: string;
+}
+
+// ============================================
+// Web3 Authentication Types
+// ============================================
+
+export interface Web3AuthOptions {
+  /** Ethereum wallet address (checksummed) */
+  walletAddress: string;
+  /** Signature from personal_sign */
+  signature: string;
+  /** Message that was signed */
+  message: string;
+}
+
+export interface Web3AuthResult {
+  success: boolean;
+  message?: string;
+  userId: string;
+  isNewUser: boolean;
+  tokenHash?: string;
+}
+
+export interface Web3SignMessageOptions {
+  /** Custom nonce (auto-generated if not provided) */
+  nonce?: string;
+  /** Custom statement for SIWE message */
+  statement?: string;
+  /** Expiration time for message (default: 10 minutes) */
+  expirationTime?: Date;
+}

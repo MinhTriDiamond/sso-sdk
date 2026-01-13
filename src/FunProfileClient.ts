@@ -20,6 +20,11 @@ import type {
   FinancialTransactionOptions,
   FinancialTransactionResult,
   FinancialAction,
+  OtpRequestOptions,
+  OtpRequestResult,
+  OtpVerifyOptions,
+  Web3AuthOptions,
+  Web3SignMessageOptions,
 } from './types';
 
 import {
@@ -181,6 +186,145 @@ export class FunProfileClient {
     this.currentUser = null;
     this.syncManager?.clear();
     this.financialSyncManager?.clear();
+  }
+
+  // ============================================
+  // OTP Authentication Methods
+  // ============================================
+
+  /**
+   * Request OTP code to be sent to email or phone
+   * @example
+   * ```typescript
+   * await client.requestOtp({ 
+   *   identifier: 'user@example.com', 
+   *   type: 'email' 
+   * });
+   * ```
+   */
+  async requestOtp(options: OtpRequestOptions): Promise<OtpRequestResult> {
+    const response = await this.request(ENDPOINTS.otpRequest, {
+      method: 'POST',
+      body: {
+        identifier: options.identifier,
+        type: options.type || 'email',
+      },
+    });
+
+    return {
+      success: response.success as boolean,
+      message: response.message as string,
+      emailSent: response.email_sent as boolean,
+      expiresInSeconds: (response.expires_in_seconds as number) || 300,
+    };
+  }
+
+  /**
+   * Verify OTP code and get authentication tokens
+   * @example
+   * ```typescript
+   * const result = await client.verifyOtp({ 
+   *   identifier: 'user@example.com', 
+   *   code: '123456' 
+   * });
+   * console.log('Logged in:', result.user.username);
+   * ```
+   */
+  async verifyOtp(options: OtpVerifyOptions): Promise<AuthResult> {
+    const response = await this.request(ENDPOINTS.otpVerify, {
+      method: 'POST',
+      body: {
+        identifier: options.identifier,
+        code: options.code,
+      },
+    });
+
+    if (!response.success) {
+      throw new ValidationError((response.error as string) || 'OTP verification failed');
+    }
+
+    return this.handleOtpTokenResponse(response);
+  }
+
+  // ============================================
+  // Web3 Authentication Methods
+  // ============================================
+
+  /**
+   * Generate message for wallet signature (SIWE-style)
+   * @example
+   * ```typescript
+   * const message = client.generateWeb3Message();
+   * const signature = await window.ethereum.request({
+   *   method: 'personal_sign',
+   *   params: [message, walletAddress],
+   * });
+   * ```
+   */
+  generateWeb3Message(options?: Web3SignMessageOptions): string {
+    const nonce = options?.nonce || this.generateState().slice(0, 16);
+    const domain = new URL(this.config.redirectUri).host;
+    const statement = options?.statement || 'Sign in to Fun Ecosystem';
+    const issuedAt = new Date().toISOString();
+    const expirationTime = options?.expirationTime || new Date(Date.now() + 10 * 60 * 1000);
+
+    return [
+      `${domain} wants you to sign in with your Ethereum account.`,
+      '',
+      statement,
+      '',
+      `Nonce: ${nonce}`,
+      `Issued At: ${issuedAt}`,
+      `Expiration Time: ${expirationTime.toISOString()}`,
+    ].join('\n');
+  }
+
+  /**
+   * Authenticate with Web3 wallet signature
+   * @example
+   * ```typescript
+   * const message = client.generateWeb3Message();
+   * const signature = await signer.signMessage(message);
+   * const result = await client.authenticateWeb3({
+   *   walletAddress: '0x...',
+   *   signature,
+   *   message,
+   * });
+   * ```
+   */
+  async authenticateWeb3(options: Web3AuthOptions): Promise<AuthResult> {
+    const response = await this.request(ENDPOINTS.web3Auth, {
+      method: 'POST',
+      body: {
+        wallet_address: options.walletAddress,
+        signature: options.signature,
+        message: options.message,
+      },
+    });
+
+    if (!response.success) {
+      throw new ValidationError((response.error as string) || 'Web3 authentication failed');
+    }
+
+    // Web3 auth returns token_hash for Supabase magic link verification
+    // Create minimal user until full session is established
+    const user: FunUser = {
+      id: response.user_id as string,
+      funId: '',
+      username: (response.username as string) || '',
+      externalWalletAddress: options.walletAddress,
+    };
+
+    this.currentUser = user;
+
+    return {
+      accessToken: (response.token_hash as string) || '',
+      refreshToken: '',
+      expiresIn: 3600,
+      scope: this.config.scopes.join(' '),
+      user,
+      isNewUser: response.is_new_user as boolean,
+    };
   }
 
   // ============================================
@@ -552,6 +696,29 @@ export class FunProfileClient {
     }
 
     return this.transformAuthResult(response, tokens);
+  }
+
+  private async handleOtpTokenResponse(response: Record<string, unknown>): Promise<AuthResult> {
+    const tokens: TokenData = {
+      accessToken: response.access_token as string,
+      refreshToken: response.refresh_token as string,
+      expiresAt: Date.now() + 3600 * 1000, // 1 hour default for OTP
+      scope: this.config.scopes,
+    };
+
+    await this.storage.setTokens(tokens);
+
+    // Fetch full user profile
+    const user = await this.getUser();
+
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      expiresIn: 3600,
+      scope: tokens.scope.join(' '),
+      user,
+      isNewUser: response.is_new_user as boolean,
+    };
   }
 
   private transformAuthResult(response: Record<string, unknown>, tokens: TokenData): AuthResult {
