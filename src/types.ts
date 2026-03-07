@@ -38,7 +38,7 @@ export interface FunUser {
   email?: string;
   walletAddress?: string;
   externalWalletAddress?: string;
-  custodialWalletAddress?: string;
+  
   soul?: SoulNft;
   rewards?: UserRewards;
   financialData?: FinancialData;

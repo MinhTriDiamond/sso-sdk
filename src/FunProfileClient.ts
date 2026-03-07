@@ -742,7 +742,7 @@ export class FunProfileClient {
       email: data.email as string | undefined,
       walletAddress: data.wallet_address as string | undefined,
       externalWalletAddress: data.external_wallet_address as string | undefined,
-      custodialWalletAddress: (data.custodial_wallet as string) || (data.custodial_wallet_address as string) || undefined,
+      
       tokenType: data.token_type as 'jwt' | 'opaque' | undefined,
     };
 
