@@ -37,6 +37,7 @@ export interface FunUser {
   avatarUrl?: string;
   email?: string;
   walletAddress?: string;
+  /** @deprecated Custodial wallet has been removed. Always null. */
   externalWalletAddress?: string;
   
   soul?: SoulNft;
